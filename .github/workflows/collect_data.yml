@@ -3,16 +3,17 @@ name: Collect OKX OI Data
 
 on:
   schedule:
-    # 這是核心：使用 cron 語法，每5分鐘運行一次
-    # GitHub Actions cron 的最小間隔是5分鐘，這是免費方案的一個限制
-    # 但我們可以通過在腳本內部循環來達到分鐘級，見下文
     - cron: '*/5 * * * *'
-  # 也允許手動觸發
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # 這是解決問題的關鍵！明確授予 workflow 寫入倉庫的權限。
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # 可以選擇 3.9, 3.10, etc.
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -28,12 +29,11 @@ jobs:
           pip install httpx pandas
 
       - name: Run data collection script
-        # 為了達到分鐘級，我們在5分鐘的窗口內，自己循環5次
         run: |
           for i in {1..5}; do
             python okx_oi_downloader.py
             if [ $i -lt 5 ]; then
-              echo "Waiting 60 seconds for the next run..."
+              echo "Waiting 60 seconds for the next run in this cycle..."
               sleep 60
             fi
           done
@@ -43,7 +43,6 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add .
-          # 使用 git status 檢查是否有變更
           if ! git diff-index --quiet HEAD; then
             git commit -m "📈 Automatic data update"
             git push
